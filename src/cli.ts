@@ -1,50 +1,35 @@
-//import path from "path";
-//import { fork } from "child_process";
-import { Proxy } from "./proxy";
+import path from "path";
+import { patch } from "./http-client-patch";
 
-const originalProxyURL = process.env.HTTP_PROXY || process.env.http_proxy;
-const proxy = new Proxy({
-  host: "127.0.0.1",
-  port: 3000,
-  systemProxyURL: originalProxyURL ? new URL(originalProxyURL) : null,
+const newmanPath =
+  process.env.NEWMANX_NEWMAN_PATH ||
+  path.join(require.resolve("newman"), "..", "bin", "newman");
+
+const entries = [];
+patch(entries);
+
+process.on("exit", () => {
+  const report = {
+    log: {
+      version: "1.2",
+      creator: {
+        name: "newman-trace",
+        version: "1.0.0",
+      },
+      pages: {},
+      entries,
+      comment: "",
+    },
+  };
+
+  console.log(JSON.stringify(report, null, 2));
 });
 
-async function main() {
-  console.log("listening:", proxy.listening);
-  const address = await proxy.listen();
-  console.log(JSON.stringify(address));
-  console.log("listening:", proxy.listening);
-  /*
-  const newmanPath = path.join(
-    require.resolve("newman"),
-    "..",
-    "bin",
-    "newman"
-  );
-
-  const args = process.argv.length > 2 ? process.argv.slice(2) : [];
-  fork(newmanPath, args, {
-    env: {
-      ...process.env,
-      NODE_DEBUG: "https,http",
-    },
-    //silent: true,
-    stdio: "inherit",
+(async function main() {
+  const newman = (await import(newmanPath)).default;
+  newman(process.argv, (err) => {
+    if (err) {
+      console.error(err);
+    }
   });
-  */
-
-  //child.stderr.on("data", (chunk) => {
-  //const log = chunk.toString("utf8");
-  //if (log.startsWith("HTTP")) {
-  //console.log(chunk.toString("utf8"));
-  //}
-  //});
-
-  /*https.get("https://quotable.apilab.io", (res) => {
-  console.log(res.statusCode);
-});*/
-}
-
-(async function () {
-  await main();
 })();
