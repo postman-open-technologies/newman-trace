@@ -1,8 +1,10 @@
+import { ClientRequest, IncomingMessage } from "http";
+
 export function har(self, storage, request, options, callback) {
   const method = options.method || "GET";
   const url =
     options instanceof String
-      ? options
+      ? new URL(String(options))
       : new URL(
           (options.protocol ||
             options.agent?.protocol ||
@@ -12,7 +14,7 @@ export function har(self, storage, request, options, callback) {
             ":" +
             (options.port || "80") +
             (options.path || options.pathname || "/")
-        ).toString();
+        );
   const headers = options.headers || {};
 
   const start = Date.now();
@@ -32,18 +34,59 @@ export function har(self, storage, request, options, callback) {
     connection: "",
     request: {
       method,
-      url,
-      headers: headers,
+      url: url.toString(),
+      httpVersion: "HTTP/1.1",
+      cookies: [],
+      headers: Object.entries(headers).map(([name, value]) => {
+        return { name, value };
+      }),
+      queryString: [],
+      postData: undefined,
+      headersSize: -1,
+      bodySize: -1,
     },
     response: {
+      status: 0,
+      statusText: "",
+      httpVersion: "",
+      cookies: [],
       headers: {},
-      body: {},
+      content: {},
+      redirectURL: "",
+      headersSize: -1,
+      bodySize: -1,
     },
   };
-  storage.push(entry);
-  const req = request.call(self, options, callback);
 
-  req.on("response", (res) => {
+  for (const [name, value] of url.searchParams.entries()) {
+    //entry.request.queryString.push({ name, value });
+  }
+
+  storage.push(entry);
+  const req: ClientRequest = request.call(self, options, callback);
+
+  let requestHeadersSize = 4; // ending \r\n\r\n
+  for (const [name, value] of Object.entries(req.getHeaders())) {
+    if (Array.isArray(value)) {
+      requestHeadersSize +=
+        name.length * value.length + value.join("").length + 4 * value.length;
+      continue;
+    }
+    requestHeadersSize += name.length + 4 + String(value).length;
+  }
+  entry.request.headersSize = requestHeadersSize;
+
+  entry.request.cookies = !req.getHeader("cookie")
+    ? []
+    : request
+        .getHeader("cookie")
+        .split("; ")
+        .map((cookie) => {
+          const [name, value] = cookie.split("=");
+          return { name, value };
+        });
+
+  req.on("response", (res: IncomingMessage) => {
     const requestHeaders = Object.fromEntries(
       Object.entries(headers).map(([key, val]) => {
         return [key.toLowerCase(), val];
@@ -55,7 +98,64 @@ export function har(self, storage, request, options, callback) {
       // might not work in all cases
     }
 
-    entry.response.headers = res.headers;
+    entry.response.status = res.statusCode;
+    entry.response.statusText = res.statusMessage;
+    entry.response.httpVersion = `HTTP/${res.httpVersion}`;
+    entry.response.headers = Object.entries(res.headers).map(
+      ([name, value]) => {
+        return { name, value };
+      }
+    );
+    entry.response.redirectURL = res.headers["location"] || "";
+
+    // all header bytes + 4 for each header [':', ' ', '\r', '\n']
+    // + 4 characters at the end, '\r\n\r\n'
+    entry.response.headersSize =
+      res.rawHeaders.join("").length + 4 * (res.rawHeaders.length / 2) + 4;
+
+    entry.response.cookies = !res.headers["cookie"]
+      ? []
+      : res.headers["set-cookie"].map((cookie) => {
+          const cookieObj = {
+            name: "",
+            value: "",
+            path: undefined,
+            domain: undefined,
+            expires: undefined,
+            httpOnly: undefined,
+            secure: undefined,
+          };
+          // fragile, cookies can contain semicolons in quoted values
+          const parts = cookie.split(";");
+          const [cookieName, cookieValue] = parts.shift().split("=");
+          cookieObj.name = cookieName;
+          cookieObj.value = cookieValue;
+
+          for (const attr of parts) {
+            const attrParts = attr.split("=");
+            const attrName = attrParts[0].trim().toLowerCase();
+            const attrValue = attrParts[1];
+            switch (attrName) {
+              case "path":
+                cookieObj.path = attrValue;
+                break;
+              case "domain":
+                cookieObj.domain = attrValue;
+                break;
+              case "expires":
+                cookieObj.expires = attrValue;
+                break;
+              case "httponly":
+                cookieObj.httpOnly = true;
+                break;
+              case "secure":
+                cookieObj.secure = true;
+            }
+          }
+
+          return cookieObj;
+        });
+
     //let responseBody: Buffer;
     const chunks: Buffer[] = [];
 
@@ -75,7 +175,15 @@ export function har(self, storage, request, options, callback) {
       entry.timings.receive =
         Date.now() -
         (start + dns + connect + ssl + entry.timings.send + entry.timings.wait);
-      //responseBody = Buffer.concat(chunks);
+      entry.time =
+        dns +
+        connect +
+        ssl +
+        entry.timings.send +
+        entry.timings.wait +
+        entry.timings.receive;
+      const responseBody = Buffer.concat(chunks);
+      entry.response.bodySize = responseBody.length;
     });
 
     if (callback) {
@@ -83,11 +191,17 @@ export function har(self, storage, request, options, callback) {
     }
   });
 
+  const chunks: Buffer[] = [];
+  req.on("data", (chunk) => {
+    chunks.push(chunk);
+  });
   req.on("finish", () => {
     const dns = entry.timings.dns === -1 ? 0 : entry.timings.dns;
     const connect = entry.timings.connect === -1 ? 0 : entry.timings.connect;
     const ssl = entry.timings.ssl === -1 ? 0 : entry.timings.ssl;
     entry.timings.send = Date.now() - (start + dns + connect + ssl);
+    const requestBody = Buffer.concat(chunks);
+    entry.request.bodySize = requestBody.length;
   });
 
   req.on("socket", (socket) => {
