@@ -1,3 +1,4 @@
+import fs from "fs";
 import path from "path";
 import { patch } from "./http-client-patch";
 
@@ -21,7 +22,10 @@ process.on("exit", () => {
     },
   };
 
-  console.log(JSON.stringify(report, null, 2));
+  const contents = JSON.stringify(report, null, 2);
+  const timestamp = new Date().toISOString().replace(/[^\d]+/g, "-");
+  const filename = `newman-trace-${timestamp}.har`;
+  fs.writeFileSync(path.join(process.cwd(), filename), contents);
 });
 
 (async function main() {
