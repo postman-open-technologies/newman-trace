@@ -1,5 +1,5 @@
 {
-  "name": "postman2har",
+  "name": "newman-trace",
   "version": "1.0.0",
   "description": "",
   "main": "dist/cli.js",
