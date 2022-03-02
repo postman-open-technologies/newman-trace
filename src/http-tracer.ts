@@ -1,25 +1,31 @@
+import { Entry } from "har-format";
 import { ClientRequest, IncomingMessage } from "http";
 import { getEncoding } from "istextorbinary";
+import { RequestFunc, TraceOptions } from "./types";
 
-export function har(self, storage, request, options, callback) {
+export function har(
+  self,
+  storage: Entry[],
+  request: RequestFunc,
+  options: TraceOptions,
+  callback?: (res: IncomingMessage) => void
+) {
   const method = options.method || "GET";
   const url =
     options instanceof String
       ? new URL(String(options))
       : new URL(
-          (options.protocol ||
-            options.agent?.protocol ||
-            options.defaultProtocol) +
+          (options.protocol || options.defaultProtocol) +
             "//" +
             (options.hostname || options.host || "localhost") +
             ":" +
             (options.port || "80") +
-            (options.path || options.pathname || "/")
+            (options.path || "/")
         );
   const headers = options.headers || {};
 
   const start = Date.now();
-  const entry = {
+  const entry: Entry = {
     startedDateTime: new Date(start).toISOString(),
     time: 0,
     serverIPAddress: "",
@@ -29,9 +35,7 @@ export function har(self, storage, request, options, callback) {
       url: url.toString(),
       httpVersion: "HTTP/1.1",
       cookies: [],
-      headers: Object.entries(headers).map(([name, value]) => {
-        return { name, value };
-      }),
+      headers: [],
       queryString: [],
       postData: undefined,
       headersSize: -1,
@@ -40,14 +44,12 @@ export function har(self, storage, request, options, callback) {
     response: {
       status: 0,
       statusText: "",
-      httpVersion: "",
+      httpVersion: "HTTP/1.1",
       cookies: [],
-      headers: {},
+      headers: [],
       content: {
         size: 0,
         mimeType: "",
-        text: undefined,
-        encoding: undefined,
       },
       redirectURL: "",
       headersSize: -1,
@@ -64,6 +66,20 @@ export function har(self, storage, request, options, callback) {
       ssl: -1,
     },
   };
+  Object.entries(headers).map(([name, value]) => {
+    return { name, value };
+  });
+
+  for (const [name, value] of Object.entries(headers)) {
+    if (Array.isArray(value)) {
+      for (const val of value) {
+        entry.request.headers.push({ name, value: val });
+      }
+      continue;
+    }
+
+    entry.request.headers.push({ name, value: String(value) });
+  }
 
   for (const [name, value] of url.searchParams.entries()) {
     entry.request.queryString.push({ name, value });
@@ -85,13 +101,10 @@ export function har(self, storage, request, options, callback) {
 
   entry.request.cookies = !req.getHeader("cookie")
     ? []
-    : request
-        .getHeader("cookie")
-        .split("; ")
-        .map((cookie) => {
-          const [name, value] = cookie.split("=");
-          return { name, value };
-        });
+    : (req.getHeader("cookie") as string).split("; ").map((cookie) => {
+        const [name, value] = cookie.split("=");
+        return { name, value };
+      });
 
   req.on("response", (res: IncomingMessage) => {
     const requestHeaders = Object.fromEntries(
@@ -108,12 +121,18 @@ export function har(self, storage, request, options, callback) {
     entry.response.status = res.statusCode;
     entry.response.statusText = res.statusMessage;
     entry.response.httpVersion = `HTTP/${res.httpVersion}`;
-    entry.response.headers = Object.entries(res.headers).map(
-      ([name, value]) => {
-        return { name, value };
-      }
-    );
     entry.response.redirectURL = res.headers["location"] || "";
+
+    for (const [name, value] of Object.entries(res.headers)) {
+      if (Array.isArray(value)) {
+        for (const val of value) {
+          entry.response.headers.push({ name, value: val });
+        }
+        continue;
+      }
+
+      entry.request.headers.push({ name, value: String(value) });
+    }
 
     // all header bytes + 4 for each header [':', ' ', '\r', '\n']
     // + 4 characters at the end, '\r\n\r\n'
@@ -207,7 +226,7 @@ export function har(self, storage, request, options, callback) {
     });
 
     if (callback) {
-      callback();
+      callback(res);
     }
   });
 
@@ -224,7 +243,7 @@ export function har(self, storage, request, options, callback) {
     entry.request.bodySize = requestBody.length;
     const ct = req.getHeader("content-type");
     if (ct) {
-      entry.request.postData.mimeType = ct;
+      entry.request.postData.mimeType = ct as string;
       if (ct === "application/x-wwww-form-urlencoded") {
         const params = new URLSearchParams(requestBody.toString("utf8"));
         entry.request.postData.params = [];

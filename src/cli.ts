@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import fs from "fs";
+import { Har } from "har-format";
 import path from "path";
 import { patch } from "./http-client-patch";
 
@@ -42,7 +43,7 @@ process.on("exit", (code) => {
     return;
   }
 
-  const report = {
+  const report: Har = {
     log: {
       version: "1.2",
       creator: {
@@ -86,7 +87,7 @@ if (traceHelp) {
 
 (async function main() {
   const newman = (await import(newmanPath)).default;
-  newman(process.argv, (err) => {
+  newman(process.argv, (err: Error) => {
     if (err) {
       console.error(err);
     }
