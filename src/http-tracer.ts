@@ -21,15 +21,6 @@ export function har(self, storage, request, options, callback) {
   const entry = {
     startedDateTime: new Date(start).toISOString(),
     time: 0,
-    timings: {
-      blocked: -1,
-      dns: -1,
-      connect: -1,
-      send: 0,
-      wait: 0,
-      receive: 0,
-      ssl: -1,
-    },
     serverIPAddress: "",
     connection: "",
     request: {
@@ -51,15 +42,28 @@ export function har(self, storage, request, options, callback) {
       httpVersion: "",
       cookies: [],
       headers: {},
-      content: {},
+      content: {
+        size: 0,
+        mimeType: "",
+      },
       redirectURL: "",
       headersSize: -1,
       bodySize: -1,
     },
+    cache: {},
+    timings: {
+      blocked: -1,
+      dns: -1,
+      connect: -1,
+      send: 0,
+      wait: 0,
+      receive: 0,
+      ssl: -1,
+    },
   };
 
   for (const [name, value] of url.searchParams.entries()) {
-    //entry.request.queryString.push({ name, value });
+    entry.request.queryString.push({ name, value });
   }
 
   storage.push(entry);
@@ -183,7 +187,9 @@ export function har(self, storage, request, options, callback) {
         entry.timings.wait +
         entry.timings.receive;
       const responseBody = Buffer.concat(chunks);
-      entry.response.bodySize = responseBody.length;
+      entry.response.bodySize = entry.response.content.size =
+        responseBody.length;
+      entry.response.content.mimeType = res.headers["content-type"];
     });
 
     if (callback) {

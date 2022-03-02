@@ -16,9 +16,8 @@ process.on("exit", () => {
         name: "newman-trace",
         version: "1.0.0",
       },
-      pages: {},
+      pages: [],
       entries,
-      comment: "",
     },
   };
 
