@@ -34,9 +34,9 @@ for (const [index, option] of process.argv.entries()) {
     break;
   }
 }
-
+const traceHelp = process.argv.indexOf("--trace-help") > -1;
 process.on("exit", (code) => {
-  if (code !== 0 || noTrace) {
+  if (code !== 0 || noTrace || traceHelp) {
     return;
   }
 
@@ -67,6 +67,19 @@ process.on("exit", (code) => {
   const contents = JSON.stringify(report, null, 2);
   fs.writeFileSync(traceExport, contents);
 });
+
+if (traceHelp) {
+  console.log(
+    "Usage: newman-trace run <collection> [newman-options] [newman-trace-options]"
+  );
+  console.log();
+  console.log("Options:");
+  console.log("  --no-trace              Disable tracing");
+  console.log(
+    "  --trace-export <path>   Specify a location for the trace file"
+  );
+  process.exit();
+}
 
 (async function main() {
   const newman = (await import(newmanPath)).default;
