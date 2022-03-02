@@ -1,27 +1,28 @@
 {
   "name": "newman-trace",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "",
   "main": "dist/cli.js",
   "bin": "./dist/cli.js",
   "scripts": {
-    "tsc:build": "tsc",
-    "tsc:watch": "tsc -w --preserveWatchOutput",
+    "build": "tsc",
+    "watch": "tsc -w --preserveWatchOutput",
     "test": "jest --cacheDirectory=.cache/.jest",
     "start": "npm run build && node ./dist/cli.js",
-    "clean": "rimraf build dist .cache"
+    "clean": "rimraf build dist .cache",
+    "prepare": "npm run clean && npm run build && chmod +x ./dist/cli.js"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/kevinswiber/postman2har.git"
+    "url": "git+https://github.com/kevinswiber/newman-trace.git"
   },
   "keywords": [],
   "author": "Kevin Swiber <kswiber@gmail.com>",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "bugs": {
-    "url": "https://github.com/kevinswiber/postman2har/issues"
+    "url": "https://github.com/kevinswiber/newman-trace/issues"
   },
-  "homepage": "https://github.com/kevinswiber/postman2har#readme",
+  "homepage": "https://github.com/kevinswiber/newman-trace#readme",
   "devDependencies": {
     "@types/jest": "^27.0.3",
     "@types/node": "^14.18.3",
