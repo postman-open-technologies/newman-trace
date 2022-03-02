@@ -9,7 +9,37 @@ const newmanPath =
 const entries = [];
 patch(entries);
 
-process.on("exit", () => {
+const noTrace = process.argv.indexOf("--no-trace") > -1;
+
+if (noTrace) {
+  process.argv.splice(process.argv.indexOf("--no-trace"), 1);
+}
+
+let traceExport = null;
+
+const traceExportOption = "--trace-export";
+for (const [index, option] of process.argv.entries()) {
+  if (option === traceExportOption) {
+    traceExport = process.argv[index + 1];
+    process.argv.splice(index, 2);
+    break;
+  }
+
+  if (option.startsWith(traceExportOption)) {
+    const parts = option.split("=");
+    if (parts.length > 1) {
+      traceExport = parts[1];
+      process.argv.splice(index, 1);
+    }
+    break;
+  }
+}
+
+process.on("exit", (code) => {
+  if (code !== 0 || noTrace) {
+    return;
+  }
+
   const report = {
     log: {
       version: "1.2",
@@ -22,10 +52,20 @@ process.on("exit", () => {
     },
   };
 
+  if (!traceExport) {
+    const timestamp = new Date().toISOString().replace(/[^\d]+/g, "-");
+    traceExport = path.join("newman", `newman-trace-${timestamp}.har`);
+  }
+
+  const dir = path.dirname(traceExport);
+  try {
+    fs.statSync(dir);
+  } catch {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+
   const contents = JSON.stringify(report, null, 2);
-  const timestamp = new Date().toISOString().replace(/[^\d]+/g, "-");
-  const filename = `newman-trace-${timestamp}.har`;
-  fs.writeFileSync(path.join(process.cwd(), filename), contents);
+  fs.writeFileSync(traceExport, contents);
 });
 
 (async function main() {
