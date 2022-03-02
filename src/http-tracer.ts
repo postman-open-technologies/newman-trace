@@ -1,4 +1,5 @@
 import { ClientRequest, IncomingMessage } from "http";
+import { getEncoding } from "istextorbinary";
 
 export function har(self, storage, request, options, callback) {
   const method = options.method || "GET";
@@ -45,6 +46,8 @@ export function har(self, storage, request, options, callback) {
       content: {
         size: 0,
         mimeType: "",
+        text: undefined,
+        encoding: undefined,
       },
       redirectURL: "",
       headersSize: -1,
@@ -190,6 +193,17 @@ export function har(self, storage, request, options, callback) {
       entry.response.bodySize = entry.response.content.size =
         responseBody.length;
       entry.response.content.mimeType = res.headers["content-type"];
+      const enc = getEncoding(responseBody);
+
+      if (!enc) {
+        return;
+      }
+      if (enc === "utf8") {
+        entry.response.content.text = responseBody.toString("utf8");
+      } else if (enc === "binary") {
+        entry.response.content.text = responseBody.toString("base64");
+        entry.response.content.encoding = "base64";
+      }
     });
 
     if (callback) {
@@ -208,6 +222,22 @@ export function har(self, storage, request, options, callback) {
     entry.timings.send = Date.now() - (start + dns + connect + ssl);
     const requestBody = Buffer.concat(chunks);
     entry.request.bodySize = requestBody.length;
+    const ct = req.getHeader("content-type");
+    if (ct) {
+      entry.request.postData.mimeType = ct;
+      if (ct === "application/x-wwww-form-urlencoded") {
+        entry.request.postData.params = []; // TODO
+      }
+      if (ct === "multipart/form-data") {
+        entry.request.postData.params = []; // TODO
+      }
+
+      const enc = getEncoding(requestBody);
+
+      if (enc === "utf8") {
+        entry.request.postData.text = requestBody.toString("utf8");
+      }
+    }
   });
 
   req.on("socket", (socket) => {
