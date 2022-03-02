@@ -45,7 +45,7 @@ process.on("exit", (code) => {
 
   if (!traceExport) {
     const timestamp = new Date().toISOString().replace(/[^\d]+/g, "-");
-    traceExport = path.join("newman", `newman-trace-${timestamp}.har`);
+    traceExport = path.join("newman", `newman-trace-${timestamp}0.har`);
   }
 
   const dir = path.dirname(traceExport);

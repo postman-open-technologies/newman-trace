@@ -1,6 +1,6 @@
 {
   "name": "newman-trace",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Run a Postman collection and store the execution as an HTTP Archive (HAR) file.",
   "main": "dist/cli.js",
   "bin": "./dist/cli.js",
