@@ -45,7 +45,10 @@ export function createEntry(method: string, url: URL, start: number): Entry {
       headersSize: -1,
       bodySize: -1,
     },
-    cache: {},
+    cache: {
+      beforeRequest: null,
+      afterRequest: null,
+    },
     timings: {
       blocked: -1,
       dns: -1,

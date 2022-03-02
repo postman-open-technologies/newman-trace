@@ -1,14 +1,15 @@
-import { Entry, Log } from "har-format";
 import {
   ClientRequest,
   IncomingHttpHeaders,
   IncomingMessage,
   OutgoingHttpHeaders,
 } from "node:http";
+import { AddressInfo } from "node:net";
+import { createBrotliDecompress, createGunzip, createInflate } from "node:zlib";
+import { Entry, Log } from "har-format";
 import { getEncoding } from "istextorbinary";
 import { createEntry } from "./har";
 import { RequestFunc, TraceOptions } from "./types";
-import { AddressInfo } from "node:net";
 
 export function instrument(
   self: unknown,
@@ -152,20 +153,88 @@ export function instrument(
         entry.timings.wait +
         entry.timings.receive;
 
-      const responseBody = Buffer.concat(chunks);
-      entry.response.bodySize = entry.response.content.size =
-        responseBody.length;
-
       entry.response.content.mimeType = res.headers["content-type"];
-      const enc = getEncoding(responseBody);
 
-      if (!enc) {
-        return;
-      } else if (enc === "utf8") {
-        entry.response.content.text = responseBody.toString("utf8");
-      } else if (enc === "binary") {
-        entry.response.content.text = responseBody.toString("base64");
-        entry.response.content.encoding = "base64";
+      const responseBody = Buffer.concat(chunks);
+      entry.response.bodySize = responseBody.length;
+      const ce = res.headers["content-encoding"];
+      if (!ce) {
+        entry.response.content.size = responseBody.length; // only if not compressed, bigger uncompressed
+
+        const enc = getEncoding(responseBody);
+
+        if (!enc) {
+          return;
+        } else if (enc === "utf8") {
+          entry.response.content.text = responseBody.toString("utf8");
+        } else if (enc === "binary") {
+          entry.response.content.text = responseBody.toString("base64");
+          entry.response.content.encoding = "base64";
+        }
+      } else {
+        const decompress = new Map([
+          ["gzip", createGunzip],
+          ["br", createBrotliDecompress],
+          ["deflate", createInflate],
+        ]);
+        if (decompress.has(ce)) {
+          const deFunc = decompress.get(ce);
+          const de = deFunc();
+          de.end(responseBody);
+
+          const chunks = [];
+          de.on("readable", () => {
+            let chunk: Buffer;
+            while ((chunk = de.read())) {
+              chunks.push(chunk);
+            }
+          });
+          de.on("end", () => {
+            const buf = Buffer.concat(chunks);
+            entry.response.content.size = buf.length;
+            entry.response.content.compression =
+              buf.length - responseBody.length;
+
+            const enc = getEncoding(buf);
+
+            if (!enc) {
+              return;
+            } else if (enc === "utf8") {
+              entry.response.content.text = buf.toString("utf8");
+            } else if (enc === "binary") {
+              entry.response.content.text = buf.toString("base64");
+              entry.response.content.encoding = "base64";
+            }
+          });
+        }
+        /*
+        if (ce === "gzip") {
+          const gunzip = createGunzip();
+          gunzip.end(responseBody);
+          const chunks = [];
+          gunzip.on("readable", () => {
+            let chunk: Buffer;
+            while ((chunk = gunzip.read())) {
+              chunks.push(chunk);
+            }
+          });
+          gunzip.on("end", () => {
+            const buf = Buffer.concat(chunks);
+            entry.response.content.size = buf.length; // only if not compressed, bigger uncompressed
+
+            const enc = getEncoding(buf);
+
+            if (!enc) {
+              return;
+            } else if (enc === "utf8") {
+              entry.response.content.text = buf.toString("utf8");
+            } else if (enc === "binary") {
+              entry.response.content.text = buf.toString("base64");
+              entry.response.content.encoding = "base64";
+            }
+          });
+        }
+        */
       }
     });
 
