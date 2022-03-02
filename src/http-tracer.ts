@@ -1,5 +1,10 @@
 import { Entry } from "har-format";
-import { ClientRequest, IncomingMessage } from "node:http";
+import {
+  ClientRequest,
+  IncomingHttpHeaders,
+  IncomingMessage,
+  OutgoingHttpHeaders,
+} from "node:http";
 import { getEncoding } from "istextorbinary";
 import { createEntry } from "./har";
 import { RequestFunc, TraceOptions } from "./types";
@@ -222,21 +227,27 @@ export function instrument(
   return req;
 }
 
-function convertHeadersWithSize(headers) {
-  let size = 2;
-  const converted = [];
-  for (const [name, value] of Object.entries(headers)) {
-    if (Array.isArray(value)) {
-      size +=
-        name.length * value.length + value.join("").length + 4 * value.length;
-      for (const val of value) {
-        converted.push({ name, value: String(val) });
+function convertHeadersWithSize(
+  headers: IncomingHttpHeaders | OutgoingHttpHeaders
+) {
+  return Object.entries(headers).reduce(
+    (prev, [name, value]) => {
+      if (Array.isArray(value)) {
+        prev.size +=
+          name.length * value.length + value.join("").length + 4 * value.length;
+        for (const val of value) {
+          prev.converted.push({ name, value: String(val) });
+        }
       }
-      continue;
-    }
 
-    size += name.length + 4 + String(value).length;
-    converted.push({ name, value: String(value) });
-  }
-  return { converted, size };
+      prev.size += name.length + 4 + String(value).length;
+      prev.converted.push({ name, value: String(value) });
+
+      return prev;
+    },
+    {
+      converted: [],
+      size: 2,
+    }
+  );
 }
