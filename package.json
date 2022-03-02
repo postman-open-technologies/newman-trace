@@ -1,7 +1,7 @@
 {
   "name": "newman-trace",
   "version": "0.6.0",
-  "description": "",
+  "description": "Run a Postman collection and store the execution as an HTTP Archive (HAR) file.",
   "main": "dist/cli.js",
   "bin": "./dist/cli.js",
   "scripts": {
@@ -18,7 +18,12 @@
     "type": "git",
     "url": "git+https://github.com/kevinswiber/newman-trace.git"
   },
-  "keywords": [],
+  "keywords": [
+    "postman",
+    "newman",
+    "har",
+    "trace"
+  ],
   "author": "Kevin Swiber <kswiber@gmail.com>",
   "license": "Apache-2.0",
   "bugs": {
@@ -41,7 +46,6 @@
     "typescript": "^4.5.2"
   },
   "dependencies": {
-    "content-type-parser": "^1.0.2",
     "istextorbinary": "^6.0.0",
     "newman": "^5.3.1",
     "require-in-the-middle": "^5.1.0",
