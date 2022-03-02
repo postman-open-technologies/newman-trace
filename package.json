@@ -5,12 +5,14 @@
   "main": "dist/cli.js",
   "bin": "./dist/cli.js",
   "scripts": {
-    "build": "tsc",
-    "watch": "tsc -w --preserveWatchOutput",
+    "build": "tsc && npm run chmod",
+    "watch": "npm run build && tsc -w --preserveWatchOutput",
     "test": "jest --cacheDirectory=.cache/.jest",
     "start": "npm run build && node ./dist/cli.js",
     "clean": "rimraf build dist .cache",
-    "prepare": "npm run clean && npm run build && chmod +x ./dist/cli.js"
+    "chmod": "node -e \"require('fs').chmodSync('./dist/cli.js', 0o750)\"",
+    "prepack": "npm run clean",
+    "prepare": "npm run build"
   },
   "repository": {
     "type": "git",
