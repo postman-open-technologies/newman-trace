@@ -226,10 +226,14 @@ export function har(self, storage, request, options, callback) {
     if (ct) {
       entry.request.postData.mimeType = ct;
       if (ct === "application/x-wwww-form-urlencoded") {
-        entry.request.postData.params = []; // TODO
+        const params = new URLSearchParams(requestBody.toString("utf8"));
+        entry.request.postData.params = [];
+        for (const [name, value] of params.entries()) {
+          entry.request.postData.params.push({ name, value });
+        }
       }
       if (ct === "multipart/form-data") {
-        entry.request.postData.params = []; // TODO
+        entry.request.postData.params = []; // TODO ...or no?
       }
 
       const enc = getEncoding(requestBody);
