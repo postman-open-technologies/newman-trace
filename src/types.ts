@@ -1,5 +1,5 @@
-import { ClientRequest, IncomingMessage } from "http";
-import { RequestOptions } from "https";
+import { ClientRequest, IncomingMessage } from "node:http";
+import { RequestOptions } from "node:https";
 
 export type TraceOptions = RequestOptions & {
   defaultProtocol: string;

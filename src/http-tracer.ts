@@ -1,10 +1,11 @@
 import { Entry } from "har-format";
-import { ClientRequest, IncomingMessage } from "http";
+import { ClientRequest, IncomingMessage } from "node:http";
 import { getEncoding } from "istextorbinary";
+import { createEntry } from "./har";
 import { RequestFunc, TraceOptions } from "./types";
 
-export function har(
-  self,
+export function instrument(
+  self: unknown,
   storage: Entry[],
   request: RequestFunc,
   options: TraceOptions,
@@ -25,61 +26,11 @@ export function har(
   const headers = options.headers || {};
 
   const start = Date.now();
-  const entry: Entry = {
-    startedDateTime: new Date(start).toISOString(),
-    time: 0,
-    serverIPAddress: "",
-    connection: "",
-    request: {
-      method,
-      url: url.toString(),
-      httpVersion: "HTTP/1.1",
-      cookies: [],
-      headers: [],
-      queryString: [],
-      postData: undefined,
-      headersSize: -1,
-      bodySize: -1,
-    },
-    response: {
-      status: 0,
-      statusText: "",
-      httpVersion: "HTTP/1.1",
-      cookies: [],
-      headers: [],
-      content: {
-        size: 0,
-        mimeType: "",
-      },
-      redirectURL: "",
-      headersSize: -1,
-      bodySize: -1,
-    },
-    cache: {},
-    timings: {
-      blocked: -1,
-      dns: -1,
-      connect: -1,
-      send: 0,
-      wait: 0,
-      receive: 0,
-      ssl: -1,
-    },
-  };
-  Object.entries(headers).map(([name, value]) => {
-    return { name, value };
-  });
+  const entry: Entry = createEntry(method, url, start);
 
-  for (const [name, value] of Object.entries(headers)) {
-    if (Array.isArray(value)) {
-      for (const val of value) {
-        entry.request.headers.push({ name, value: val });
-      }
-      continue;
-    }
-
-    entry.request.headers.push({ name, value: String(value) });
-  }
+  const { converted, size } = convertHeadersWithSize(headers);
+  entry.request.headers = converted;
+  entry.request.headersSize = size;
 
   for (const [name, value] of url.searchParams.entries()) {
     entry.request.queryString.push({ name, value });
@@ -88,7 +39,7 @@ export function har(
   storage.push(entry);
   const req: ClientRequest = request.call(self, options, callback);
 
-  let requestHeadersSize = 4; // ending \r\n\r\n
+  let requestHeadersSize = 2; // ending \r\n
   for (const [name, value] of Object.entries(req.getHeaders())) {
     if (Array.isArray(value)) {
       requestHeadersSize +=
@@ -107,37 +58,25 @@ export function har(
       });
 
   req.on("response", (res: IncomingMessage) => {
-    const requestHeaders = Object.fromEntries(
-      Object.entries(headers).map(([key, val]) => {
-        return [key.toLowerCase(), val];
-      })
-    );
-
-    if (requestHeaders["content-length"]) {
-      // has request body
-      // might not work in all cases
-    }
-
     entry.response.status = res.statusCode;
     entry.response.statusText = res.statusMessage;
     entry.response.httpVersion = `HTTP/${res.httpVersion}`;
     entry.response.redirectURL = res.headers["location"] || "";
 
+    const { converted, size } = convertHeadersWithSize(res.headers);
+    entry.response.headers = converted;
+    entry.response.headersSize = size;
+
+    let responseHeadersSize = 2; // ending \r\n
     for (const [name, value] of Object.entries(res.headers)) {
       if (Array.isArray(value)) {
-        for (const val of value) {
-          entry.response.headers.push({ name, value: val });
-        }
+        responseHeadersSize +=
+          name.length * value.length + value.join("").length + 4 * value.length;
         continue;
       }
-
-      entry.request.headers.push({ name, value: String(value) });
+      responseHeadersSize += name.length + 4 + String(value).length;
     }
-
-    // all header bytes + 4 for each header [':', ' ', '\r', '\n']
-    // + 4 characters at the end, '\r\n\r\n'
-    entry.response.headersSize =
-      res.rawHeaders.join("").length + 4 * (res.rawHeaders.length / 2) + 4;
+    entry.response.headersSize = responseHeadersSize;
 
     entry.response.cookies = !res.headers["cookie"]
       ? []
@@ -182,9 +121,7 @@ export function har(
           return cookieObj;
         });
 
-    //let responseBody: Buffer;
     const chunks: Buffer[] = [];
-
     res.on("data", (chunk) => {
       const dns = entry.timings.dns === -1 ? 0 : entry.timings.dns;
       const connect = entry.timings.connect === -1 ? 0 : entry.timings.connect;
@@ -208,16 +145,17 @@ export function har(
         entry.timings.send +
         entry.timings.wait +
         entry.timings.receive;
+
       const responseBody = Buffer.concat(chunks);
       entry.response.bodySize = entry.response.content.size =
         responseBody.length;
+
       entry.response.content.mimeType = res.headers["content-type"];
       const enc = getEncoding(responseBody);
 
       if (!enc) {
         return;
-      }
-      if (enc === "utf8") {
+      } else if (enc === "utf8") {
         entry.response.content.text = responseBody.toString("utf8");
       } else if (enc === "binary") {
         entry.response.content.text = responseBody.toString("base64");
@@ -239,8 +177,10 @@ export function har(
     const connect = entry.timings.connect === -1 ? 0 : entry.timings.connect;
     const ssl = entry.timings.ssl === -1 ? 0 : entry.timings.ssl;
     entry.timings.send = Date.now() - (start + dns + connect + ssl);
+
     const requestBody = Buffer.concat(chunks);
     entry.request.bodySize = requestBody.length;
+
     const ct = req.getHeader("content-type");
     if (ct) {
       entry.request.postData.mimeType = ct as string;
@@ -255,9 +195,7 @@ export function har(
         entry.request.postData.params = []; // TODO ...or no?
       }
 
-      const enc = getEncoding(requestBody);
-
-      if (enc === "utf8") {
+      if (getEncoding(requestBody) === "utf8") {
         entry.request.postData.text = requestBody.toString("utf8");
       }
     }
@@ -267,20 +205,38 @@ export function har(
     socket.on("lookup", () => {
       entry.timings.dns = Date.now() - start;
     });
+
     socket.on("connect", () => {
       entry.timings.connect =
         entry.timings.dns !== -1
           ? Date.now() - (start + entry.timings.dns)
           : Date.now() - start;
     });
+
     socket.on("secureConnect", () => {
       const dns = entry.timings.dns === -1 ? 0 : entry.timings.dns;
       entry.timings.ssl = Date.now() - (start + dns + entry.timings.connect);
     });
   });
 
-  //const chunks = [];
-  //req.on("data", (chunk) => {});
-
   return req;
+}
+
+function convertHeadersWithSize(headers) {
+  let size = 2;
+  const converted = [];
+  for (const [name, value] of Object.entries(headers)) {
+    if (Array.isArray(value)) {
+      size +=
+        name.length * value.length + value.join("").length + 4 * value.length;
+      for (const val of value) {
+        converted.push({ name, value: String(val) });
+      }
+      continue;
+    }
+
+    size += name.length + 4 + String(value).length;
+    converted.push({ name, value: String(value) });
+  }
+  return { converted, size };
 }

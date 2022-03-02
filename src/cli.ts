@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
-import fs from "fs";
-import { Har } from "har-format";
-import path from "path";
+import fs from "node:fs";
+import path from "node:path";
+import { createArchive } from "./har";
 import { patch } from "./http-client-patch";
 
 const newmanPath =
@@ -43,17 +43,7 @@ process.on("exit", (code) => {
     return;
   }
 
-  const report: Har = {
-    log: {
-      version: "1.2",
-      creator: {
-        name: "newman-trace",
-        version: "1.0.0",
-      },
-      pages: [],
-      entries,
-    },
-  };
+  const report = createArchive("newman-trace", "1.0.0", entries);
 
   if (!traceExport) {
     const timestamp = new Date().toISOString().replace(/[^\d]+/g, "-");
