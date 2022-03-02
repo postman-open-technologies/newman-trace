@@ -1,10 +1,10 @@
 {
   "name": "newman-trace",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "",
   "main": "dist/cli.js",
   "bin": {
-    "newman-trace": "node dist/cli.js"
+    "newman-trace": "./dist/cli.js"
   },
   "scripts": {
     "tsc:build": "tsc",
