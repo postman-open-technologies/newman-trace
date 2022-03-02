@@ -9,7 +9,7 @@ import { createBrotliDecompress, createGunzip, createInflate } from "node:zlib";
 import { Entry, Log } from "har-format";
 import { getEncoding } from "istextorbinary";
 import { createEntry } from "./har";
-import { RequestFunc, TraceOptions } from "./types";
+import { RequestFunc, Timings, TraceOptions } from "./types";
 
 export function instrument(
   self: unknown,
@@ -32,8 +32,18 @@ export function instrument(
         );
   const headers = options.headers || {};
 
-  const start = Date.now();
-  const entry: Entry = createEntry(method, url, start);
+  const timings: Timings = {
+    start: process.hrtime.bigint(),
+    blocked: BigInt(-1),
+    dns: BigInt(-1),
+    connect: BigInt(-1),
+    send: BigInt(0),
+    wait: BigInt(0),
+    receive: BigInt(0),
+    ssl: BigInt(-1),
+  };
+
+  const entry: Entry = createEntry(method, url, Date.now());
 
   const { converted, size } = convertHeadersWithSize(headers);
   entry.request.headers = converted;
@@ -130,25 +140,30 @@ export function instrument(
 
     const chunks: Buffer[] = [];
     res.on("data", (chunk) => {
-      const dns = entry.timings.dns === -1 ? 0 : entry.timings.dns;
-      const connect = entry.timings.connect === -1 ? 0 : entry.timings.connect;
-      const ssl = entry.timings.ssl === -1 ? 0 : entry.timings.ssl;
-      entry.timings.wait =
-        Date.now() - (start + dns + connect + ssl + entry.timings.send);
+      const dns = timings.dns < 0 ? BigInt(0) : timings.dns;
+      const connect = timings.connect < 0 ? BigInt(0) : timings.connect;
+      const ssl = entry.timings.ssl < 0 ? BigInt(0) : timings.ssl;
+      timings.wait =
+        process.hrtime.bigint() -
+        (timings.start + dns + connect + ssl + timings.send);
+      entry.timings.wait = Number(timings.wait) / 1_000_000;
+
       chunks.push(chunk);
     });
 
     res.on("end", () => {
-      const dns = entry.timings.dns === -1 ? 0 : entry.timings.dns;
-      const connect = entry.timings.connect === -1 ? 0 : entry.timings.connect;
-      const ssl = entry.timings.ssl === -1 ? 0 : entry.timings.ssl;
-      entry.timings.receive =
-        Date.now() -
-        (start + dns + connect + ssl + entry.timings.send + entry.timings.wait);
+      const dns = timings.dns < 0 ? BigInt(0) : timings.dns;
+      const connect = timings.connect < 0 ? BigInt(0) : timings.connect;
+      const ssl = entry.timings.ssl < 0 ? BigInt(0) : timings.ssl;
+      timings.receive =
+        process.hrtime.bigint() -
+        (timings.start + dns + connect + ssl + timings.send + timings.wait);
+      entry.timings.receive = Number(timings.receive) / 1_000_000;
+
       entry.time =
-        dns +
-        connect +
-        ssl +
+        Number(dns) / 1_000_000 +
+        Number(connect) / 1_000_000 +
+        Number(ssl) / 1_000_000 +
         entry.timings.send +
         entry.timings.wait +
         entry.timings.receive;
@@ -207,34 +222,6 @@ export function instrument(
             }
           });
         }
-        /*
-        if (ce === "gzip") {
-          const gunzip = createGunzip();
-          gunzip.end(responseBody);
-          const chunks = [];
-          gunzip.on("readable", () => {
-            let chunk: Buffer;
-            while ((chunk = gunzip.read())) {
-              chunks.push(chunk);
-            }
-          });
-          gunzip.on("end", () => {
-            const buf = Buffer.concat(chunks);
-            entry.response.content.size = buf.length; // only if not compressed, bigger uncompressed
-
-            const enc = getEncoding(buf);
-
-            if (!enc) {
-              return;
-            } else if (enc === "utf8") {
-              entry.response.content.text = buf.toString("utf8");
-            } else if (enc === "binary") {
-              entry.response.content.text = buf.toString("base64");
-              entry.response.content.encoding = "base64";
-            }
-          });
-        }
-        */
       }
     });
 
@@ -248,10 +235,12 @@ export function instrument(
     chunks.push(chunk);
   });
   req.on("finish", () => {
-    const dns = entry.timings.dns === -1 ? 0 : entry.timings.dns;
-    const connect = entry.timings.connect === -1 ? 0 : entry.timings.connect;
-    const ssl = entry.timings.ssl === -1 ? 0 : entry.timings.ssl;
-    entry.timings.send = Date.now() - (start + dns + connect + ssl);
+    const dns = timings.dns < 0 ? BigInt(0) : timings.dns;
+    const connect = timings.connect < 0 ? BigInt(0) : timings.connect;
+    const ssl = entry.timings.ssl < 0 ? BigInt(0) : timings.ssl;
+    timings.send =
+      process.hrtime.bigint() - (timings.start + dns + connect + ssl);
+    entry.timings.send = Number(timings.send) / 1_000_000;
 
     const requestBody = Buffer.concat(chunks);
     entry.request.bodySize = requestBody.length;
@@ -284,7 +273,8 @@ export function instrument(
 
     socket.on("lookup", (_err, address) => {
       entry.serverIPAddress = address;
-      entry.timings.dns = Date.now() - start;
+      timings.dns = process.hrtime.bigint() - timings.start;
+      entry.timings.dns = Number(timings.dns) / 1_000_000;
     });
 
     socket.on("connect", () => {
@@ -292,15 +282,16 @@ export function instrument(
       if (address.port) {
         entry.connection = String(address.port);
       }
-      entry.timings.connect =
-        entry.timings.dns !== -1
-          ? Date.now() - (start + entry.timings.dns)
-          : Date.now() - start;
+      const dns = timings.dns < 0 ? BigInt(0) : timings.dns;
+      timings.connect = process.hrtime.bigint() - (timings.start + dns);
+      entry.timings.connect = Number(timings.connect) / 1_000_000;
     });
 
     socket.on("secureConnect", () => {
-      const dns = entry.timings.dns === -1 ? 0 : entry.timings.dns;
-      entry.timings.ssl = Date.now() - (start + dns + entry.timings.connect);
+      const dns = timings.dns < 0 ? BigInt(0) : timings.dns;
+      timings.ssl =
+        process.hrtime.bigint() - (timings.start + dns + timings.connect);
+      entry.timings.ssl = Number(timings.ssl) / 1_000_000;
     });
   });
 

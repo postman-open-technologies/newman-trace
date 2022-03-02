@@ -23,3 +23,14 @@ type RequestFunc2 = (
   options: RequestOptions,
   callback?: (res: IncomingMessage) => void
 ) => ClientRequest;
+
+export interface Timings {
+  start: bigint;
+  blocked: bigint;
+  dns: bigint;
+  connect: bigint;
+  send: bigint;
+  wait: bigint;
+  receive: bigint;
+  ssl: bigint;
+}
