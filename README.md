@@ -6,6 +6,12 @@ Traces are recorded via an exported HAR file.
 
 Use as a drop-in replacement for `newman`.
 
+## Install
+
+```
+npm install -g newman-trace
+```
+
 ## Usage
 
 ```
