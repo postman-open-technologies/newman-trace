@@ -3,7 +3,7 @@ import path from "path";
 import { patch } from "./http-client-patch";
 
 const newmanPath =
-  process.env.NEWMANX_NEWMAN_PATH ||
+  process.env.NEWMANTRACE_NEWMAN_PATH ||
   path.join(require.resolve("newman"), "..", "bin", "newman");
 
 const entries = [];
@@ -78,6 +78,7 @@ if (traceHelp) {
   console.log(
     "  --trace-export <path>   Specify a location for the trace file"
   );
+  console.log("  --trace-help            Displays this message");
   process.exit();
 }
 
