@@ -9,8 +9,8 @@ const newmanPath =
   process.env.NEWMANTRACE_NEWMAN_PATH ||
   path.join(require.resolve("newman"), "..", "bin", "newman");
 
-const entries = [];
-patch(entries);
+const archive = createArchive("newman-trace", "1.0.0");
+patch(archive.log);
 
 const noTrace = process.argv.indexOf("--no-trace") > -1;
 
@@ -43,8 +43,6 @@ process.on("exit", (code) => {
     return;
   }
 
-  const report = createArchive("newman-trace", "1.0.0", entries);
-
   if (!traceExport) {
     const timestamp = new Date().toISOString().replace(/[^\d]+/g, "-");
     traceExport = path.join("newman", `newman-trace-${timestamp}.har`);
@@ -57,7 +55,7 @@ process.on("exit", (code) => {
     fs.mkdirSync(dir, { recursive: true });
   }
 
-  const contents = JSON.stringify(report, null, 2);
+  const contents = JSON.stringify(archive, null, 2);
   fs.writeFileSync(traceExport, contents);
 });
 

@@ -1,4 +1,4 @@
-import { Entry } from "har-format";
+import { Entry, Log } from "har-format";
 import {
   ClientRequest,
   IncomingHttpHeaders,
@@ -8,10 +8,11 @@ import {
 import { getEncoding } from "istextorbinary";
 import { createEntry } from "./har";
 import { RequestFunc, TraceOptions } from "./types";
+import { AddressInfo } from "node:net";
 
 export function instrument(
   self: unknown,
-  storage: Entry[],
+  log: Log,
   request: RequestFunc,
   options: TraceOptions,
   callback?: (res: IncomingMessage) => void
@@ -41,7 +42,7 @@ export function instrument(
     entry.request.queryString.push({ name, value });
   }
 
-  storage.push(entry);
+  log.entries.push(entry);
   const req: ClientRequest = request.call(self, options, callback);
 
   let requestHeadersSize = 2; // ending \r\n
@@ -207,11 +208,21 @@ export function instrument(
   });
 
   req.on("socket", (socket) => {
-    socket.on("lookup", () => {
+    const address = socket.address() as AddressInfo;
+    if (address.port) {
+      entry.connection = String(address.port);
+    }
+
+    socket.on("lookup", (_err, address) => {
+      entry.serverIPAddress = address;
       entry.timings.dns = Date.now() - start;
     });
 
     socket.on("connect", () => {
+      const address = socket.address() as AddressInfo;
+      if (address.port) {
+        entry.connection = String(address.port);
+      }
       entry.timings.connect =
         entry.timings.dns !== -1
           ? Date.now() - (start + entry.timings.dns)

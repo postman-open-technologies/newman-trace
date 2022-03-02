@@ -1,10 +1,6 @@
 import { Entry, Har } from "har-format";
 
-export function createArchive(
-  name: string,
-  version: string,
-  entries: Entry[]
-): Har {
+export function createArchive(name: string, version: string): Har {
   return {
     log: {
       version: "1.2",
@@ -13,7 +9,7 @@ export function createArchive(
         version,
       },
       pages: [],
-      entries,
+      entries: [],
     },
   };
 }

@@ -1,26 +1,24 @@
-import { Entry } from "har-format";
+import { Log } from "har-format";
 import { IncomingMessage } from "node:http";
 import hook from "require-in-the-middle";
 import shimmer from "shimmer";
 import { instrument } from "./http-tracer";
 import { TraceOptions, ProtocolModule, RequestFunc } from "./types";
 
-export function patch(storage: Entry[]) {
+export function patch(log: Log) {
   hook(["http", "https"], (moduleExports) => {
     const modExp = moduleExports as unknown as ProtocolModule;
     shimmer.wrap(modExp, "request", (request) =>
-      createTrace(modExp, storage, request)
+      createTrace(modExp, log, request)
     );
-    shimmer.wrap(modExp, "get", (request) =>
-      createTrace(modExp, storage, request)
-    );
+    shimmer.wrap(modExp, "get", (request) => createTrace(modExp, log, request));
     return moduleExports;
   });
 }
 
 function createTrace(
   moduleExports: ProtocolModule,
-  storage: Entry[],
+  log: Log,
   request: RequestFunc
 ) {
   const defaultProtocol = moduleExports.globalAgent?.protocol || "http:";
@@ -33,6 +31,6 @@ function createTrace(
     }
 
     options.defaultProtocol = defaultProtocol;
-    return instrument(this, storage, request, options, callback);
+    return instrument(this, log, request, options, callback);
   };
 }
