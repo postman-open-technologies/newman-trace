@@ -1,13 +1,12 @@
-import fs from "node:fs";
-import { createArchive } from "./har";
+import { HARExporter } from "./har-exporter";
 import { patch } from "./http-client-patch";
 
 const name = process.env.HAR_CREATOR_NAME || "har-tracer";
 const version = process.env.HAR_CREATOR_VERSION || "1.0.0";
 const exportPath = process.env.HAR_EXPORT_PATH || "./trace.har";
 
-const archive = createArchive(name, version);
-patch(archive.log);
+const harExporter = new HARExporter({ name, version, exportPath });
+patch(harExporter);
 
 process.on(process.report.signal, dump);
 process.on("exit", (code) => {
@@ -19,6 +18,5 @@ process.on("exit", (code) => {
 });
 
 function dump() {
-  const contents = JSON.stringify(archive, null, 2);
-  fs.writeFileSync(exportPath, contents);
+  harExporter.export();
 }
