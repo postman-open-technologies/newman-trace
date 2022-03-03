@@ -1,65 +1,54 @@
 #!/usr/bin/env node
 
-import fs from "node:fs";
-import path from "node:path";
-import { createArchive } from "./har";
-import { patch } from "./http-client-patch";
+import path from "path";
+import { main } from "./main";
 
-const newmanPath =
-  process.env.NEWMANTRACE_NEWMAN_PATH ||
-  path.join(require.resolve("newman"), "..", "bin", "newman");
+(async function cli() {
+  const traceHelp = process.argv.indexOf("--trace-help") > -1;
+  if (traceHelp) {
+    printHelp();
 
-const archive = createArchive("newman-trace", "1.0.0");
-patch(archive.log);
-
-const noTrace = process.argv.indexOf("--no-trace") > -1;
-
-if (noTrace) {
-  process.argv.splice(process.argv.indexOf("--no-trace"), 1);
-}
-
-let traceExport = null;
-
-const traceExportOption = "--trace-export";
-for (const [index, option] of process.argv.entries()) {
-  if (option === traceExportOption) {
-    traceExport = process.argv[index + 1];
-    process.argv.splice(index, 2);
-    break;
-  }
-
-  if (option.startsWith(traceExportOption)) {
-    const parts = option.split("=");
-    if (parts.length > 1) {
-      traceExport = parts[1];
-      process.argv.splice(index, 1);
-    }
-    break;
-  }
-}
-const traceHelp = process.argv.indexOf("--trace-help") > -1;
-process.on("exit", (code) => {
-  if (code !== 0 || noTrace || traceHelp) {
     return;
   }
 
-  if (!traceExport) {
-    const timestamp = new Date().toISOString().replace(/[^\d]+/g, "-");
-    traceExport = path.join("newman", `newman-trace-${timestamp}0.har`);
+  const { harFilePath, isTracingPrevented } = parseOptions(process.argv);
+
+  const timestamp = new Date().toISOString().replace(/[^\d]+/g, "-");
+  const ensuredHarFilePath =
+    harFilePath || path.join("newman", `newman-trace-${timestamp}0.har`);
+
+  await main(ensuredHarFilePath, isTracingPrevented);
+})();
+
+function parseOptions(args: string[]) {
+  const isTracingPrevented = args.indexOf("--no-trace") > -1;
+
+  if (isTracingPrevented) {
+    process.argv.splice(args.indexOf("--no-trace"), 1);
   }
 
-  const dir = path.dirname(traceExport);
-  try {
-    fs.statSync(dir);
-  } catch {
-    fs.mkdirSync(dir, { recursive: true });
+  const traceExportOption = "--trace-export";
+  let harFilePath: string = null;
+  for (const [index, option] of args.entries()) {
+    if (option === traceExportOption) {
+      harFilePath = args[index + 1];
+      process.argv.splice(index, 2);
+      break;
+    }
+
+    if (option.startsWith(traceExportOption)) {
+      const parts = option.split("=");
+      if (parts.length > 1) {
+        harFilePath = parts[1];
+        process.argv.splice(index, 1);
+      }
+      break;
+    }
   }
+  return { isTracingPrevented, harFilePath };
+}
 
-  const contents = JSON.stringify(archive, null, 2);
-  fs.writeFileSync(traceExport, contents);
-});
-
-if (traceHelp) {
+function printHelp() {
   console.log(
     "Usage: newman-trace run <collection> [newman-options] [newman-trace-options]"
   );
@@ -70,14 +59,4 @@ if (traceHelp) {
     "  --trace-export <path>   Specify a location for the trace file"
   );
   console.log("  --trace-help            Displays this message");
-  process.exit();
 }
-
-(async function main() {
-  const newman = (await import(newmanPath)).default;
-  newman(process.argv, (err: Error) => {
-    if (err) {
-      console.error(err);
-    }
-  });
-})();
