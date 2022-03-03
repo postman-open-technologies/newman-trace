@@ -34,13 +34,13 @@ export function instrument(
 
   const timings: Timings = {
     start: process.hrtime.bigint(),
-    blocked: BigInt(-1),
-    dns: BigInt(-1),
-    connect: BigInt(-1),
-    send: BigInt(0),
-    wait: BigInt(0),
-    receive: BigInt(0),
-    ssl: BigInt(-1),
+    blocked: -1n,
+    dns: -1n,
+    connect: -1n,
+    send: 0n,
+    wait: 0n,
+    receive: 0n,
+    ssl: -1n,
   };
 
   const entry: Entry = createEntry(method, url, Date.now());
@@ -140,27 +140,36 @@ export function instrument(
 
     const chunks: Buffer[] = [];
     res.on("data", (chunk) => {
-      const dns = timings.dns < 0 ? BigInt(0) : timings.dns;
-      const connect = timings.connect < 0 ? BigInt(0) : timings.connect;
-      const ssl = entry.timings.ssl < 0 ? BigInt(0) : timings.ssl;
+      const blocked = timings.blocked < 0n ? 0n : timings.blocked;
+      const dns = timings.dns < 0n ? 0n : timings.dns;
+      const connect = timings.connect < 0n ? 0n : timings.connect;
+      const ssl = entry.timings.ssl < 0n ? 0n : timings.ssl;
       timings.wait =
         process.hrtime.bigint() -
-        (timings.start + dns + connect + ssl + timings.send);
+        (timings.start + blocked + dns + connect + ssl + timings.send);
       entry.timings.wait = Number(timings.wait) / 1_000_000;
 
       chunks.push(chunk);
     });
 
     res.on("end", () => {
-      const dns = timings.dns < 0 ? BigInt(0) : timings.dns;
-      const connect = timings.connect < 0 ? BigInt(0) : timings.connect;
-      const ssl = entry.timings.ssl < 0 ? BigInt(0) : timings.ssl;
+      const blocked = timings.blocked < 0n ? 0n : timings.blocked;
+      const dns = timings.dns < 0n ? 0n : timings.dns;
+      const connect = timings.connect < 0n ? 0n : timings.connect;
+      const ssl = timings.ssl < 0n ? 0n : timings.ssl;
       timings.receive =
         process.hrtime.bigint() -
-        (timings.start + dns + connect + ssl + timings.send + timings.wait);
+        (timings.start +
+          blocked +
+          dns +
+          connect +
+          ssl +
+          timings.send +
+          timings.wait);
       entry.timings.receive = Number(timings.receive) / 1_000_000;
 
       entry.time =
+        Number(blocked) / 1_000_000 +
         Number(dns) / 1_000_000 +
         Number(connect) / 1_000_000 +
         Number(ssl) / 1_000_000 +
@@ -235,11 +244,12 @@ export function instrument(
     chunks.push(chunk);
   });
   req.on("finish", () => {
-    const dns = timings.dns < 0 ? BigInt(0) : timings.dns;
-    const connect = timings.connect < 0 ? BigInt(0) : timings.connect;
-    const ssl = entry.timings.ssl < 0 ? BigInt(0) : timings.ssl;
+    const blocked = timings.blocked < 0n ? 0n : timings.blocked;
+    const dns = timings.dns < 0n ? 0n : timings.dns;
+    const connect = timings.connect < 0n ? 0n : timings.connect;
+    const ssl = timings.ssl < 0n ? 0n : timings.ssl;
     timings.send =
-      process.hrtime.bigint() - (timings.start + dns + connect + ssl);
+      process.hrtime.bigint() - (timings.start + blocked + dns + connect + ssl);
     entry.timings.send = Number(timings.send) / 1_000_000;
 
     const requestBody = Buffer.concat(chunks);
@@ -266,6 +276,8 @@ export function instrument(
   });
 
   req.on("socket", (socket) => {
+    timings.blocked = process.hrtime.bigint() - timings.start;
+    entry.timings.blocked = Number(timings.blocked) / 1_000_000;
     const address = socket.address() as AddressInfo;
     if (address.port) {
       entry.connection = String(address.port);
@@ -273,7 +285,8 @@ export function instrument(
 
     socket.on("lookup", (_err, address) => {
       entry.serverIPAddress = address;
-      timings.dns = process.hrtime.bigint() - timings.start;
+      const blocked = timings.blocked < 0n ? 0n : timings.blocked;
+      timings.dns = process.hrtime.bigint() - (timings.start + blocked);
       entry.timings.dns = Number(timings.dns) / 1_000_000;
     });
 
@@ -282,15 +295,19 @@ export function instrument(
       if (address.port) {
         entry.connection = String(address.port);
       }
-      const dns = timings.dns < 0 ? BigInt(0) : timings.dns;
-      timings.connect = process.hrtime.bigint() - (timings.start + dns);
+      const blocked = timings.blocked < 0n ? 0n : timings.blocked;
+      const dns = timings.dns < 0n ? 0n : timings.dns;
+      timings.connect =
+        process.hrtime.bigint() - (timings.start + blocked + dns);
       entry.timings.connect = Number(timings.connect) / 1_000_000;
     });
 
     socket.on("secureConnect", () => {
-      const dns = timings.dns < 0 ? BigInt(0) : timings.dns;
+      const blocked = timings.blocked < 0n ? 0n : timings.blocked;
+      const dns = timings.dns < 0n ? 0n : timings.dns;
       timings.ssl =
-        process.hrtime.bigint() - (timings.start + dns + timings.connect);
+        process.hrtime.bigint() -
+        (timings.start + blocked + dns + timings.connect);
       entry.timings.ssl = Number(timings.ssl) / 1_000_000;
     });
   });
