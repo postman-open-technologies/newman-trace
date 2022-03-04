@@ -1,0 +1,204 @@
+{
+	"info": {
+		"_postman_id": "96e741d3-4390-453f-a661-fd076bd4720b",
+		"name": "Quotable",
+		"description": "## End-to-end test for the Quotable API\n\n1.  LIst all quotes available.\n2.  Select a random quote.\n3.  Save the author ID and a random tag name.\n4.  Check if the author exists.\n5.  Check if the tag exists.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "List quotes",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript"
+					}
+				},
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('status code is 200', () => {",
+							"  pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test('response has an array of items', () => {",
+							"  const response = pm.response.json();",
+							"  pm.expect(response).to.have.length.gt(0);",
+							"});",
+							"",
+							"const response = pm.response.json();",
+							"const rnd = Math.floor(Math.random() * response.length);",
+							"const id = response[rnd]._id;",
+							"pm.environment.set('quoteId', id);"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/quotes",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"quotes"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get a single quote",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('status code is 200', () => {",
+							"  pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test('response has an author string and tags array', () => {",
+							"  const response = pm.response.json();",
+							"  pm.expect(response.author).is.a('string');",
+							"  pm.expect(response.tags).instanceof(Array);",
+							"});",
+							"",
+							"const response = pm.response.json();",
+							"pm.environment.set('authorId', response.authorId);",
+							"",
+							"const rnd = Math.floor(Math.random() * response.tags.length);",
+							"pm.environment.set('tagName', response.tags[rnd]);"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/quotes/{{quoteId}}",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"quotes",
+						"{{quoteId}}"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Check if author exists",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('status code is 200', () => {",
+							"  pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test('response includes a matching ID', () => {",
+							"  const response = pm.response.json();",
+							"  const authorId = pm.environment.get('authorId');",
+							"  pm.expect(response._id).to.eql(authorId);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/authors/{{authorId}}",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"authors",
+						"{{authorId}}"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Check if tag exists",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('status code is 200', () => {",
+							"  pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test('tags include the corresponding name', () => {",
+							"  const response = pm.response.json();",
+							"  const tagName = pm.environment.get('tagName');",
+							"  const tag = response.find((t) => t.name === tagName);",
+							"  ",
+							"  pm.expect(tag).to.exist;",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/tags",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"tags"
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "https://quotable.apilab.io",
+			"type": "string"
+		}
+	]
+}
