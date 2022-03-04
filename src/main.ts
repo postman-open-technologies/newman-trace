@@ -8,7 +8,9 @@ const newmanPath =
 
 export async function main(traceExport, isTracingPrevented) {
   const dir = path.dirname(traceExport);
-  if (!(await fs.stat(dir))) {
+  try {
+    await fs.stat(dir);
+  } catch {
     await fs.mkdir(dir, { recursive: true });
   }
 
