@@ -1,7 +1,7 @@
-import { Har } from "har-format";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { Har } from "har-format";
 import { HARExporter } from "../src/har-exporter";
 
 jest.mock("fs");
