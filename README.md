@@ -6,7 +6,7 @@ Trace Postman collection runs with `newman-trace`.
 
 Use as a drop-in replacement for `newman`.
 
-[![Animation of a terminal session showing the usage of newman-trace and HAR file information.](https://raw.githubusercontent.com/kevinswiber/newman-trace/main/images/newman-trace-example.svg)](https://raw.githubusercontent.com/kevinswiber/newman-trace/main/images/newman-trace-example.svg)
+[![Animation of a terminal session showing the usage of newman-trace and HAR file information.](https://raw.githubusercontent.com/kevinswiber/newman-trace/main/images/newman-trace-example.svg)](https://asciinema.org/a/473770)
 
 The HTTP Archive (HAR) format is a record of HTTP transactions with detailed performance data. It's used for measuring, logging, and comparing HTTP transaction and performance data over time.
 
