@@ -1,5 +1,5 @@
-import { HARExporter } from "./har-exporter";
-import { patch } from "./http-client-patch";
+import { HARExporter } from "http-telemetry";
+import { patch } from "http-telemetry";
 
 const name = process.env.HAR_CREATOR_NAME || "har-tracer";
 const version = process.env.HAR_CREATOR_VERSION || "1.0.0";
@@ -18,5 +18,5 @@ process.on("exit", (code) => {
 });
 
 function dump() {
-  harExporter.export();
+  harExporter.complete();
 }

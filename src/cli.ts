@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import path from "path";
+import path from "node:path";
 import { main } from "./main";
 
 (async function cli() {

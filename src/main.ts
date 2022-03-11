@@ -1,12 +1,12 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { fork } from "child_process";
+import { fork } from "node:child_process";
 
 const newmanPath =
   process.env.NEWMANTRACE_NEWMAN_PATH ||
   path.join(require.resolve("newman"), "..", "bin", "newman");
 
-export async function main(traceExport, isTracingPrevented) {
+export async function main(traceExport: string, isTracingPrevented: boolean) {
   const dir = path.dirname(traceExport);
   try {
     await fs.stat(dir);

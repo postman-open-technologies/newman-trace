@@ -2,7 +2,7 @@
   "name": "newman-trace",
   "version": "1.0.0",
   "description": "Run a Postman collection and store the execution as an HTTP Archive (HAR) file.",
-  "main": "dist/cli.js",
+  "main": "dist/main.js",
   "bin": "./dist/cli.js",
   "scripts": {
     "build": "tsc && npm run chmod",
@@ -52,9 +52,7 @@
     "typescript": "^4.5.2"
   },
   "dependencies": {
-    "istextorbinary": "^6.0.0",
-    "newman": "^5.3.1",
-    "require-in-the-middle": "^5.1.0",
-    "shimmer": "^1.2.1"
+    "http-telemetry": "^1.0.0",
+    "newman": "^5.3.1"
   }
 }
